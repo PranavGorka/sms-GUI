@@ -619,6 +619,8 @@ public class Main extends Frame {
         fillList(lstDashboard, list);
         fillList(lstStocks,    list);
         fillList(lstSearch,    list);
+        validate();
+        repaint();
     }
 
     private void updateSummary() {
