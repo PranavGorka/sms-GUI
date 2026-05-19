@@ -61,10 +61,11 @@ public class Main extends Frame {
         });
 
         buildUI();
-        setVisible(true);
+        
         refreshTable(manager.getAllStocks());
         updateSummary();
         setStatus("Welcome to Stock Management System  |  " + manager.getStockCount() + " stocks loaded.", ACCENT_GREEN);
+        setVisible(true);
     }
 
     // ═════════════════════════════════════════════════════════════════════════
