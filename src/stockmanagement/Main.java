@@ -32,7 +32,8 @@ public class Main extends Frame {
     private Label lblTotalStocks, lblTotalInvest, lblCurrVal, lblNetPL, lblGainers, lblLosers;
 
     // ── Table ─────────────────────────────────────────────────────────────────
-    private java.awt.List lstStocks;   // AWT List
+    private java.awt.List lstStocks;   // AWT List (shared, used in Dashboard + Manage)
+    private java.awt.List lstSearch;    // Separate list for Search & Sort tab
 
     // ── Status bar ────────────────────────────────────────────────────────────
     private Label lblStatus;
@@ -162,6 +163,18 @@ public class Main extends Frame {
         cardContainer = new Panel(cardLayout);
         cardContainer.setBackground(BG_DARK);
 
+        // Create lstStocks ONCE — shared by Dashboard and Manage Stocks tabs
+        lstStocks = new java.awt.List(20, false);
+        lstStocks.setBackground(BG_CARD);
+        lstStocks.setForeground(TEXT_WHITE);
+        lstStocks.setFont(new Font("Monospaced", Font.PLAIN, 11));
+
+        // Create lstSearch — used only by Search & Sort tab
+        lstSearch = new java.awt.List(20, false);
+        lstSearch.setBackground(BG_CARD);
+        lstSearch.setForeground(TEXT_WHITE);
+        lstSearch.setFont(new Font("Monospaced", Font.PLAIN, 11));
+
         cardContainer.add(buildDashboard(),       "Dashboard");
         cardContainer.add(buildManagePanel(),      "Manage Stocks");
         cardContainer.add(buildSearchSortPanel(),  "Search & Sort");
@@ -176,14 +189,14 @@ public class Main extends Frame {
         Panel p = new Panel(new BorderLayout(8, 8));
         p.setBackground(BG_DARK);
 
-        // Welcome label
-        Label welcome = new Label("  Welcome to Stock Management System", Label.LEFT);
-        welcome.setFont(new Font("Arial", Font.BOLD, 16));
+        Label welcome = new Label("  Welcome to Stock Management System  |  Click a row, then go to Manage Stocks to edit/delete", Label.LEFT);
+        welcome.setFont(new Font("Arial", Font.BOLD, 13));
         welcome.setForeground(ACCENT_GREEN);
         welcome.setBackground(BG_DARK);
 
-        // Stock list fills rest
-        Panel listPanel = buildStockListPanel("All Stocks");
+        // Reuse the shared lstStocks — same list object as Manage Stocks tab
+        lstStocks.addActionListener(e -> loadSelectedToForm());
+        Panel listPanel = buildStockListPanel("All Stocks", lstStocks);
 
         p.add(welcome,   BorderLayout.NORTH);
         p.add(listPanel, BorderLayout.CENTER);
@@ -249,9 +262,9 @@ public class Main extends Frame {
         btnDel.addActionListener(e -> doDelete());
         btnClr.addActionListener(e -> clearForm());
 
-        // ── Stock list ──
-        Panel listPanel = buildStockListPanel("Stock List  (click to select)");
-        lstStocks.addActionListener(e -> loadSelectedToForm());
+        // ── Stock list — reuse the shared lstStocks (same object as Dashboard) ──
+        // Add click listener only once (already added in buildDashboard)
+        Panel listPanel = buildStockListPanel("Stock List  (click row to load into form)", lstStocks);
 
         p.add(form,      BorderLayout.NORTH);
         p.add(listPanel, BorderLayout.CENTER);
@@ -299,7 +312,7 @@ public class Main extends Frame {
         btnQty.addActionListener(e   -> { refreshTable(manager.sortBy("qty"));   setStatus("Sorted by Quantity.", TEXT_WHITE); });
         btnPL.addActionListener(e    -> { refreshTable(manager.sortBy("pl"));    setStatus("Sorted by Profit/Loss.", TEXT_WHITE); });
 
-        Panel listPanel = buildStockListPanel("Results");
+        Panel listPanel = buildStockListPanel("Results", lstSearch);
         p.add(searchBar, BorderLayout.NORTH);
         p.add(listPanel, BorderLayout.CENTER);
         return p;
@@ -376,18 +389,16 @@ public class Main extends Frame {
         return sb.toString();
     }
 
-    // ─── Shared stock list panel ──────────────────────────────────────────────
-    private Panel buildStockListPanel(String title) {
+    // ─── Shared stock list panel — accepts the list component to embed ──────────
+    private Panel buildStockListPanel(String title, java.awt.List listComponent) {
         Panel p = new Panel(new BorderLayout(4, 4));
         p.setBackground(BG_DARK);
 
-        // Header row
         Label hdr = new Label(" " + title, Label.LEFT);
         hdr.setFont(new Font("Arial", Font.BOLD, 12));
         hdr.setForeground(TEXT_MUTED);
         hdr.setBackground(BG_DARK);
 
-        // Column headers (fixed-width monospace label)
         Label colHdr = new Label(
             String.format(" %-4s %-20s %-8s %-8s %12s %12s %-15s %12s",
                 "ID","Company","Symbol","Qty","Buy Price","Curr Price","Sector","P/L (₹)"),
@@ -396,19 +407,13 @@ public class Main extends Frame {
         colHdr.setForeground(ACCENT_BLUE);
         colHdr.setBackground(BG_PANEL);
 
-        // AWT List (our table)
-        lstStocks = new java.awt.List(20, false);
-        lstStocks.setBackground(BG_CARD);
-        lstStocks.setForeground(TEXT_WHITE);
-        lstStocks.setFont(new Font("Monospaced", Font.PLAIN, 11));
-
         Panel headerBox = new Panel(new BorderLayout());
         headerBox.setBackground(BG_DARK);
         headerBox.add(hdr,    BorderLayout.NORTH);
         headerBox.add(colHdr, BorderLayout.CENTER);
 
-        p.add(headerBox, BorderLayout.NORTH);
-        p.add(lstStocks, BorderLayout.CENTER);
+        p.add(headerBox,     BorderLayout.NORTH);
+        p.add(listComponent, BorderLayout.CENTER);
         return p;
     }
 
@@ -582,15 +587,22 @@ public class Main extends Frame {
     // ═════════════════════════════════════════════════════════════════════════
     //  REFRESH HELPERS
     // ═════════════════════════════════════════════════════════════════════════
-    private void refreshTable(java.util.List<Stock> list) {
-        lstStocks.removeAll();
+    // fillList fills any AWT List component (used by search tab)
+    private void fillList(java.awt.List lst, java.util.List<Stock> list) {
+        lst.removeAll();
         for (Stock s : list) {
             double pl = s.getProfitLoss();
             String row = String.format("%-4d %-20s %-8s %-8d %12.2f %12.2f %-15s %+12.2f",
                 s.getId(), s.getCompanyName(), s.getSymbol(), s.getQuantity(),
                 s.getPurchasePrice(), s.getCurrentPrice(), s.getSector(), pl);
-            lstStocks.add(row);
+            lst.add(row);
         }
+    }
+
+    // refreshTable updates lstStocks (Dashboard + Manage tab) and also lstSearch
+    private void refreshTable(java.util.List<Stock> list) {
+        fillList(lstStocks, list);
+        fillList(lstSearch, list);
     }
 
     private void updateSummary() {
