@@ -32,8 +32,9 @@ public class Main extends Frame {
     private Label lblTotalStocks, lblTotalInvest, lblCurrVal, lblNetPL, lblGainers, lblLosers;
 
     // ── Table ─────────────────────────────────────────────────────────────────
-    private java.awt.List lstStocks;   // AWT List (shared, used in Dashboard + Manage)
-    private java.awt.List lstSearch;    // Separate list for Search & Sort tab
+    private java.awt.List lstDashboard; // Dashboard tab — its own list instance
+    private java.awt.List lstStocks;    // Manage Stocks tab — its own list instance
+    private java.awt.List lstSearch;    // Search & Sort tab — its own list instance
 
     // ── Status bar ────────────────────────────────────────────────────────────
     private Label lblStatus;
@@ -163,13 +164,19 @@ public class Main extends Frame {
         cardContainer = new Panel(cardLayout);
         cardContainer.setBackground(BG_DARK);
 
-        // Create lstStocks ONCE — shared by Dashboard and Manage Stocks tabs
+        // Each tab gets its own AWT List — AWT components can only have one parent,
+        // so sharing a single instance across tabs causes the second add() to steal
+        // it from the first panel, leaving Dashboard with an empty hole.
+        lstDashboard = new java.awt.List(20, false);
+        lstDashboard.setBackground(BG_CARD);
+        lstDashboard.setForeground(TEXT_WHITE);
+        lstDashboard.setFont(new Font("Monospaced", Font.PLAIN, 11));
+
         lstStocks = new java.awt.List(20, false);
         lstStocks.setBackground(BG_CARD);
         lstStocks.setForeground(TEXT_WHITE);
         lstStocks.setFont(new Font("Monospaced", Font.PLAIN, 11));
 
-        // Create lstSearch — used only by Search & Sort tab
         lstSearch = new java.awt.List(20, false);
         lstSearch.setBackground(BG_CARD);
         lstSearch.setForeground(TEXT_WHITE);
@@ -194,9 +201,10 @@ public class Main extends Frame {
         welcome.setForeground(ACCENT_GREEN);
         welcome.setBackground(BG_DARK);
 
-        // Reuse the shared lstStocks — same list object as Manage Stocks tab
-        lstStocks.addActionListener(e -> loadSelectedToForm());
-        Panel listPanel = buildStockListPanel("All Stocks", lstStocks);
+        // Dashboard gets its own list; double-click loads the stock into the form
+        // and switches to the Manage Stocks tab.
+        lstDashboard.addActionListener(e -> loadSelectedToForm());
+        Panel listPanel = buildStockListPanel("All Stocks", lstDashboard);
 
         p.add(welcome,   BorderLayout.NORTH);
         p.add(listPanel, BorderLayout.CENTER);
@@ -262,8 +270,9 @@ public class Main extends Frame {
         btnDel.addActionListener(e -> doDelete());
         btnClr.addActionListener(e -> clearForm());
 
-        // ── Stock list — reuse the shared lstStocks (same object as Dashboard) ──
-        // Add click listener only once (already added in buildDashboard)
+        // ── Stock list — Manage Stocks tab has its own lstStocks instance ──
+        // Wire click-to-form here (lstDashboard has its own listener added in buildDashboard).
+        lstStocks.addActionListener(e -> loadSelectedToForm());
         Panel listPanel = buildStockListPanel("Stock List  (click row to load into form)", lstStocks);
 
         p.add(form,      BorderLayout.NORTH);
@@ -557,10 +566,13 @@ public class Main extends Frame {
     }
 
     private void loadSelectedToForm() {
-        int idx = lstStocks.getSelectedIndex();
+        // Check both Dashboard and Manage Stocks lists — both wire to this handler.
+        // Only one can have a selection at a time since they are separate components.
+        int idx = lstDashboard.getSelectedIndex();
+        java.awt.List source = (idx >= 0) ? lstDashboard : lstStocks;
+        idx = (idx >= 0) ? idx : lstStocks.getSelectedIndex();
         if (idx < 0) return;
-        // Parse the ID from the beginning of the selected line
-        String line = lstStocks.getItem(idx).trim();
+        String line = source.getItem(idx).trim();
         try {
             int id = Integer.parseInt(line.substring(0, line.indexOf(' ')).trim());
             Stock s = manager.findById(id);
@@ -599,10 +611,13 @@ public class Main extends Frame {
         }
     }
 
-    // refreshTable updates lstStocks (Dashboard + Manage tab) and also lstSearch
+    // refreshTable keeps all three list components in sync.
+    // Dashboard and Manage Stocks always show the full (or sorted/filtered) view;
+    // lstSearch is also refreshed so Search & Sort stays consistent after CRUD ops.
     private void refreshTable(java.util.List<Stock> list) {
-        fillList(lstStocks, list);
-        fillList(lstSearch, list);
+        fillList(lstDashboard, list);
+        fillList(lstStocks,    list);
+        fillList(lstSearch,    list);
     }
 
     private void updateSummary() {
